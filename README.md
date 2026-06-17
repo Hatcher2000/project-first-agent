@@ -1,37 +1,43 @@
-# Project: First AI Agent (Sandbox)
+# Vonn-Newsletter-Agent (Next Week in Time)
 
 ## 📌 Project Context
-This project is an educational sandbox designed to build, test, and deploy a custom AI Agent. The primary objective is to learn practical software engineering principles, master TypeScript/JavaScript integration with LLM (Large Language Model) APIs, and establish a clean, production-grade portfolio project on GitHub and Vercel. 
+This application is an autonomous, production-grade AI Editorial Pipeline that generates and delivers a premium weekly history column titled **"NEXT WEEK IN TIME"** tailored for an American audience. 
+
+What started as an educational sandbox to bridge the gap between "vibe-coding" and systematic software engineering has evolved into a fully automated, cloud-native, multi-agent system. The core application runs entirely on autopilot every week, executing live web research, compiling rich media layouts, and broadcasting to multiple stakeholders.
 
 ---
 
-## 🙋‍♂️ About Me
-* **Level:** Complete Beginner transitioning into AI-assisted development.
-* **Core Goal:** To bridge the gap between "vibe-coding" (using AI to write code) and fundamental engineering logic (understanding *why* the code works, tracking data flow, and debugging systematically).
-* **Learning Philosophy:** Education over speed. Every structural change, library installation, and architectural decision must be broken down and understood.
+## 🚀 Core Features & Engineering Milestones
+
+*   **Multi-Agent Orchestration:** Splits cognitive tasks between two distinct AI nodes—**Agent-Historian** (handles raw historical data gathering and web research) and **Agent-Copywriter** (handles curation, American-centric tone filtering, and creative copywriting).
+*   **Live Web Search Grounding:** Leverages the native Google Search engine via the `@google/genai` SDK to dynamically fetch accurate, real-time historical milestones, regional archives, and pop-culture anniversaries.
+*   **Automated Cloud Execution:** Deployed using a GitHub Actions continuous integration container, scheduled via a native CRON layout to run completely hands-off every single **Tuesday at 9:00 AM EST**.
+*   **Rich HTML Delivery System:** Features a robust self-healing retry network that compiles Markdown data arrays into safe, beautifully stylized HTML email newsletter layouts delivered directly to multiple inboxes via `nodemailer`.
 
 ---
 
-## 🛠️ Rules & Guardrails
-To maximize learning and maintain repository health, this project strictly adheres to the following rules:
-1. **No Magic Code:** Never copy-paste a block of code without understanding what its functions, arguments, and return types are doing.
-2. **Commit Early, Commit Often:** Use semantic commit messages (e.g., `feat:`, `fix:`, `docs:`) after every successful mini-milestone to build a robust GitHub contribution history.
-3. **Environment Security:** Never, under any circumstances, hardcode API keys. All credentials must live in a hidden `.env` file that is ignored by Git.
-4. **Console Transparency:** Use descriptive logging (`console.log`) across the application lifecycle so we can visually trace how data moves from the user, through the agent, and back.
+## 📊 System Architecture & Data Flow
 
----
-
-## 📁 Project Structure
-As the project scales, we will maintain a modular and predictable directory tree:
-
-Project-First-Agent/
-├── .env                 # Hidden file containing private API keys (Never commit!)
-├── .gitignore           # Tells Git to ignore node_modules and .env
-├── package.json         # Tracks project dependencies and execution scripts
-├── tsconfig.json        # TypeScript compiler configurations
-├── README.md            # This documentation file
-└── src/
-    ├── index.ts         # Main entry point where the Agent initializes
-    ├── agent.ts         # Core Agent logic, system prompts, and LLM orchestration
-    ├── tools/           # Custom capabilities we give our agent (e.g., fetching web data)
-    └── utils/           # Helper functions (logging, formatting)
+```text
+[ Tuesday 9:00 AM CRON Trigger ]
+               │
+               ▼
+   [ Dynamic Date Engine ] ──► Calculates target dates for next week
+               │
+               ▼
+     [ Agent-Historian ] ◄───► [ Live Google Search Grounding ]
+               │               (Scrapes 10-12 facts per day)
+               ▼
+      [ Raw Fact Dossier ]
+               │
+               ▼
+     [ Agent-Copywriter ] ──► Filters to 7-8 highly American-resonant events
+               │               (Applies witty tone & Markdown formatting)
+               ▼
+    [ Compiled Markdown ]
+               │
+               ▼
+       [ Marked Engine ] ──► Converts Markdown to responsive HTML CSS card
+               │
+               ▼
+      [ Nodemailer Core ] ──► Securely broadcasts to multiple subscriber accounts
