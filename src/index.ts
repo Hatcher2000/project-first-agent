@@ -188,7 +188,7 @@ CURATION AND STYLE RULES:
 2. Structure: Follow this exact markdown layout for each day:
    ### [DAY NUMBER] [MONTH SHORT NAME] (e.g., 22 JUN)
    **On this day — [Full Day Name, Month, Date]**
-   *A 2-sentence punchy, witty hook highlighting the themes of the day.*
+   *A 2-sentence punchy, witty hook highlighting the themes of the day. Include a fun fact or a trivia.*
 
    **Celebrations & Holidays**
    - Curate 4 to 5 fun or official celebrations. Prioritize US official holidays if present.
@@ -196,15 +196,15 @@ CURATION AND STYLE RULES:
    - Insert a fun fact oir trivia of why it is celebrated and make it brief but engaging.
 
    **Wisconsin & Illinois History**
-   - Format: [Year] - [Event Title] - [1 to 2 sentence engaging summary of the event, its significance, and any interesting trivia. Make it feel alive and connected to local culture.]
    - Provide 1 or 2 localized events. Frame them dynamically to feel integrated into local lore.
    - Highlight any connections to broader US history or culture if possible.
-
-   **US & World Historical Events**
    - Format: [Year] - [Event Title] - [1 to 2 sentence engaging summary of the event, its significance, and any interesting trivia. Make it feel alive and connected to local culture.]
+   
+   **US & World Historical Events**
    - Provide your 7 to 8 curated American-focused historical/pop-culture events.
    - For each event, write a 2 to 3 sentence engaging summary that captures the significance and emotional resonance. Use a witty, slightly dry tone that appeals to nostalgia and curiosity.
    - If any space exploration milestones or major inventions are present, make sure to highlight them with a bit more flair.
+   - Format: [Year] - [Event Title] - [1 to 2 sentence engaging summary of the event, its significance, and any interesting trivia. Make it feel alive and connected to local culture.]
 
 3. Tone: Witty, slightly dry, highly engaging, and perfectly scannable. Keep descriptions concise so the long list remains incredibly snappy.
 4. Output Format: Return PURE markdown text only. Do not wrap response in markdown code blocks like \\\`\\\`\\\`markdown.
