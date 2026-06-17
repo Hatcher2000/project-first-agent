@@ -1,24 +1,77 @@
 import { GoogleGenAI } from '@google/genai';
 import * as dotenv from 'dotenv';
-import * as fs from 'fs'; // Native Node module to read/write files on your hard drive
+import * as fs from 'fs';
+import * as nodemailer from 'nodemailer';
+import { marked } from 'marked';
 
 // 1. Initialize environmental protection
 dotenv.config();
 
-if (!process.env.GEMINI_API_KEY) {
-  console.error("🛑 API Key missing!");
+if (!process.env.GEMINI_API_KEY || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+  console.error("🛑 Critical Configuration Missing! Check your .env file credentials.");
   process.exit(1);
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 /**
+ * UTILITY FEATURE: The Reusable Self-Healing AI Engine
+ * Handles exponential backoff and optional Google Search grounding for any agent we deploy.
+ */
+async function executeAgentCall(prompt: string, agentName: string, useGoogleSearch: boolean = false): Promise<string> {
+  let attempts = 0;
+  const maxAttempts = 3;
+  let delayMs = 2000;
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  while (attempts < maxAttempts) {
+    try {
+      attempts++;
+      
+      // Dynamically attach Google Search tools only if the agent requests it
+      const config: any = {};
+      if (useGoogleSearch) {
+        config.tools = [{ googleSearch: {} }];
+      }
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: config
+      });
+
+      if (!response.text) {
+        throw new Error(`[${agentName}] Received empty response from model.`);
+      }
+
+      // Spy on search queries if they exist
+      const searchMetadata = (response as any).candidates?.[0]?.groundingMetadata;
+      if (useGoogleSearch && searchMetadata?.webSearchQueries) {
+        console.log(`🔍 ${agentName} executed live web searches:`);
+        searchMetadata.webSearchQueries.forEach((q: string) => console.log(`   👉 "${q}"`));
+      }
+
+      return response.text; // Success! Return the data block out of the engine
+
+    } catch (error: any) {
+      if (error.status === 503 && attempts < maxAttempts) {
+        console.warn(`⚠️ ${agentName} encountered server traffic (503). Attempt ${attempts}/${maxAttempts} failed. Retrying in ${delayMs / 1000}s...`);
+        await sleep(delayMs);
+        delayMs *= 2; // Exponential backoff
+      } else {
+        throw error; // Rethrow critical breaks or final expirations
+      }
+    }
+  }
+  throw new Error(`[${agentName}] Critical Failure after maximum retries.`);
+}
+
+/**
  * FEATURE 1: The Dynamic Date Calculator
- * Calculates the calendar dates for the upcoming Monday through Friday.
  */
 function getNextWeekDateRange(): { formattedRange: string; datesList: string[] } {
   const today = new Date();
-  const currentDayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const currentDayOfWeek = today.getDay();
 
   let daysToNextMonday = (1 - currentDayOfWeek + 7) % 7;
   if (daysToNextMonday === 0) daysToNextMonday = 7; 
@@ -29,7 +82,6 @@ function getNextWeekDateRange(): { formattedRange: string; datesList: string[] }
   const datesList: string[] = [];
   const options: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' };
 
-  // Loop 5 times to generate Monday through Friday dates
   for (let i = 0; i < 5; i++) {
     const nextWeekDay = new Date(nextMonday);
     nextWeekDay.setDate(nextMonday.getDate() + i);
@@ -41,92 +93,145 @@ function getNextWeekDateRange(): { formattedRange: string; datesList: string[] }
 }
 
 /**
- * FEATURE 2: The Agent Execution Core
+ * FEATURE 2: The Email Delivery Transport Engine
+ */
+async function sendNewsletterEmail(dateRange: string, markdownContent: string) {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const compiledHtmlContent = await marked(markdownContent);
+  const targetInbox = process.env.EMAIL_RECEIVER || process.env.EMAIL_USER;
+
+  const mailOptions = {
+    from: `"Vonn-Newsletter-Agent" <${process.env.EMAIL_USER}>`,
+    to: targetInbox,
+    subject: `📰 Next Week in Time Column Draft: [${dateRange}]`,
+    text: markdownContent, 
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #2c3e50; line-height: 1.6; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #1e3c72, #2a5298); padding: 30px; border-radius: 12px 12px 0 0; text-align: center; color: white;">
+          <h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">NEXT WEEK IN TIME</h1>
+          <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Multi-Agent Production Draft • ${dateRange}</p>
+        </div>
+        
+        <div style="background-color: #ffffff; padding: 30px; border: 1px solid #e1e4e8; border-top: none; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+          <div class="newsletter-body" style="font-size: 16px;">
+            ${compiledHtmlContent}
+          </div>
+        </div>
+        
+        <footer style="margin-top: 30px; font-size: 12px; color: #7f8c8d; text-align: center;">
+          <p>This layout was autonomously researched by Agent-Historian and styled by Agent-Copywriter.</p>
+          <p style="font-size: 10px; color: #bdc3c7;">Project-First-Agent • Multi-Agent Build v2.0</p>
+        </footer>
+      </div>
+    `
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
+/**
+ * FEATURE 3: The Multi-Agent Collaboration Core
  */
 async function runNewsletterAgent() {
   const { formattedRange, datesList } = getNextWeekDateRange();
   
   console.log(`📅 Target locked for next week: ${formattedRange}`);
-  console.log("🤖 Formulating system prompt and instructing Gemini Brain...");
 
-  const systemPrompt = `
-You are an expert historical researcher and witty copywriter for a high-end American newsletter. 
-Your task is to generate a weekly history column titled "NEXT WEEK IN TIME" strictly tailored for American readers.
+  // ==========================================
+  // STAGE 1: THE AGENT-HISTORIAN (RESEARCH)
+  // ==========================================
+  console.log("\n🕵️‍♂️ [Agent 1/2] Deploying Agent-Historian into the live web archives...");
 
-Target Dates to cover:
+  const researcherPrompt = `
+You are an expert deep-dive historical researcher. Your sole job is to scrape the web and extract an exhaustive collection of fascinating, verified, raw facts for these calendar dates:
 ${datesList.map(d => `- ${d}`).join('\n')}
 
-For EVERY SINGLE DAY (Monday through Friday), you must generate content following this exact layout and strict guidelines:
+For EVERY SINGLE DAY, execute Google Searches to gather:
+1. At least 10 to 12 iconic American historical milestones, sports history breakthroughs, pop culture anniversaries (famous movie/music releases), space exploration markers, or major US inventions. 
+2. At least 2 or 3 distinct historical occurrences unique to Wisconsin and Illinois archives.
+3. A list of 5 quirky or cultural celebrations for that day.
 
-### [DAY NUMBER] [MONTH SHORT NAME] (e.g., 22 JUN)
-**On this day — [Full Day Name, Month, Date]**
-*A 1-sentence punchy hook highlighting the themes of the day.*
-
-**Celebrations & Holidays**
-- Generate at least 4 or 5 National or World celebrations that are FUN, interesting, or quirky.
-- CRITICAL: Prioritize official or cultural US holidays if there are any for those dates. Keep descriptions brief, punchy, and modern.
-
-**Wisconsin & Illinois History**
-- Provide exactly 1 or 2 historical events specific to Wisconsin and Illinois. 
-- Frame it dynamically. Connect it to the broader American landscape or local lore when possible.
-
-**US & World Historical Events**
-- Provide 2 to 3 historical events that are universally fascinating, fun, or impactful.
-- Avoid boring dry recaps. Find the unusual details (like the security guard tape in Watergate or the pack of gum for the barcode).
-
-STYLE RULES:
-1. Tone: Witty, slightly dry, deeply engaging, and highly scannable. 
-2. Length: Concise. Do not make descriptions too lengthy. Keep paragraphs punchy.
-3. Output Format: Return PURE markdown text only. Do not wrap your response in markdown code blocks like \\\`\\\`\\\`markdown.
+Provide the data as a clean, massive, unformatted raw list of facts. Do not worry about catchy intros, marketing tone, wit, or layout structure. Just deliver exhaustive, accurate factual data dumps.
 `;
 
   try {
-    let response = null;
-    let attempts = 0;
-    const maxAttempts = 3;
-    let delayMs = 2000; // Start with a 2-second delay
+    // Fire Agent 1 with live search enabled
+    const rawResearchData = await executeAgentCall(researcherPrompt, "Agent-Historian", true);
+    console.log("✅ Agent-Historian complete! Raw web research dossier locked.");
 
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    // ==========================================
+    // STAGE 2: THE AGENT-COPYWRITER (EDITORIAL)
+    // ==========================================
+    console.log("\n✍️ [Agent 2/2] Passing dossier to Agent-Copywriter for styling & curation...");
 
-    // Self-Healing Retry Engine
-    while (attempts < maxAttempts) {
-      try {
-        attempts++;
-        response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: systemPrompt,
-        });
-        
-        break; // Success! Break out of the retry loop
-      } catch (error: any) {
-        if (error.status === 503 && attempts < maxAttempts) {
-          console.warn(`⚠️ Gemini is busy (Error 503). Attempt ${attempts}/${maxAttempts} failed. Retrying in ${delayMs / 1000} seconds...`);
-          await sleep(delayMs);
-          delayMs *= 2; // Exponential Backoff
-        } else {
-          throw error; // Pass along unexpected errors or final exhaustions
-        }
-      }
-    }
+    const editorPrompt = `
+You are a premium, high-end American newsletter editor and witty copywriter. 
+Your task is to take the raw historical research dossier provided below and transform it into a perfectly polished weekly column titled "NEXT WEEK IN TIME".
 
-    const content = response?.text;
+Target Dates to format:
+${formattedRange}
 
-    if (!content) {
-      throw new Error("Received empty text back from the AI model.");
-    }
+Here is the raw data dossier you must curate from:
+-----
+${rawResearchData}
+-----
 
+CURATION AND STYLE RULES:
+1. Daily Quota: For every single day, select exactly 7 to 8 of the absolute MOST nostalgic, recognizable, or impactful events for an American reader. Leave out any obscure or dry filler.
+2. Structure: Follow this exact markdown layout for each day:
+   ### [DAY NUMBER] [MONTH SHORT NAME] (e.g., 22 JUN)
+   **On this day — [Full Day Name, Month, Date]**
+   *A 2-sentence punchy, witty hook highlighting the themes of the day.*
+
+   **Celebrations & Holidays**
+   - Curate 4 to 5 fun or official celebrations. Prioritize US official holidays if present.
+   - Include quirky or pop-culture celebrations if they exist for that day.
+   - Insert a fun fact oir trivia of why it is celebrated and make it brief but engaging.
+
+   **Wisconsin & Illinois History**
+   - Format: [Year] - [Event Title] - [1 to 2 sentence engaging summary of the event, its significance, and any interesting trivia. Make it feel alive and connected to local culture.]
+   - Provide 1 or 2 localized events. Frame them dynamically to feel integrated into local lore.
+   - Highlight any connections to broader US history or culture if possible.
+
+   **US & World Historical Events**
+   - Format: [Year] - [Event Title] - [1 to 2 sentence engaging summary of the event, its significance, and any interesting trivia. Make it feel alive and connected to local culture.]
+   - Provide your 7 to 8 curated American-focused historical/pop-culture events.
+   - For each event, write a 2 to 3 sentence engaging summary that captures the significance and emotional resonance. Use a witty, slightly dry tone that appeals to nostalgia and curiosity.
+   - If any space exploration milestones or major inventions are present, make sure to highlight them with a bit more flair.
+
+3. Tone: Witty, slightly dry, highly engaging, and perfectly scannable. Keep descriptions concise so the long list remains incredibly snappy.
+4. Output Format: Return PURE markdown text only. Do not wrap response in markdown code blocks like \\\`\\\`\\\`markdown.
+`;
+
+    // Fire Agent 2 (No live search needed here, it parses the dossier natively!)
+    const finalNewsletterContent = await executeAgentCall(editorPrompt, "Agent-Copywriter", false);
+    console.log("✅ Agent-Copywriter complete! Editorial layout finalized.");
+
+    // ==========================================
+    // STAGE 3: OUTPUT DISPATCH PIPELINE
+    // ==========================================
     const fileName = 'next-week-newsletter.md';
-    fs.writeFileSync(fileName, content, 'utf8');
+    fs.writeFileSync(fileName, finalNewsletterContent, 'utf8');
+    console.log(`📝 Local file compiled successfully as: ${fileName}`);
 
-    console.log("\n✨ SUCCESS!");
-    console.log(`📝 Your newsletter file has been compiled and saved as: ${fileName}`);
-    console.log("Check your sidebar, open the file, and view your perfectly structured content!");
+    console.log(`📨 Initiating team email dispatch pipeline to your inbox...`);
+    await sendNewsletterEmail(formattedRange, finalNewsletterContent);
+    
+    console.log("\n✨ MULTI-AGENT SUCCESS OVERALL!");
+    console.log("🚀 The collaborative draft has been compiled and emailed as a premium styled asset to your inbox!");
 
   } catch (error) {
-    console.error("\n❌ Agent Execution Failed!");
+    console.error("\n❌ Core Multi-Agent Pipeline Crashed!");
     console.error(error);
   }
 }
 
-// Execute the automation engine
+// Execute the team engine
 runNewsletterAgent();

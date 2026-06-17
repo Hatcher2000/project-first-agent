@@ -1,0 +1,37 @@
+name: Run Vonn Newsletter Agent
+
+on:
+  schedule:
+    # ⏰ Cron schedule syntax: Minute Hour Day-of-Month Month Day-of-Week
+    # "0 14 * * 2" translates to: Every Tuesday at 14:00 UTC. 
+    # NOTE: GitHub Action timers run entirely on UTC time. 
+    # If you are in EST (UTC-5), 14:00 UTC is exactly 9:00 AM EST! 
+    # If you are in a different time zone, change "14" to match 9:00 AM local time.
+    - cron: '0 14 * * 2'
+  workflow_dispatch: # Allows you to manually trigger the cloud run anytime from the GitHub website UI
+
+jobs:
+  run-newsletter:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js runtime environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+
+    - name: Install Project Dependencies
+      run: npm install
+
+    - name: Execute Autonomous Agent
+      run: npx tsx src/index.ts
+      env:
+        # Securely injects credentials into the cloud container execution space
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        EMAIL_USER: ${{ secrets.EMAIL_USER }}
+        EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
